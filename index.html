@@ -929,11 +929,11 @@ document.getElementById('downloadScanCsvBtn').addEventListener('click', () => {
     ? selected.replace('scan_', '').replace('.csv', '')
     : '';
   const resolvedDate = selectedDate || dateStr;
-  downloadExport(
+  downloadExportChunked(
+    'scan_csv',
     {
-      type: 'scan_csv',
       date: resolvedDate || undefined,
-      max_bytes: 600000
+      max_bytes: 2000000
     },
     `spectre_scan_${resolvedDate || 'latest'}.csv`,
     'text/csv'
@@ -942,24 +942,57 @@ document.getElementById('downloadScanCsvBtn').addEventListener('click', () => {
 
 document.getElementById('refreshScanListBtn').addEventListener('click', loadScanList);
 
-async function downloadExport(payload, filename, mime) {
+async function downloadExportChunked(type, options, filename, mime) {
   if (!chars.exports) { setStatus('Export service unavailable'); return; }
   try {
-    await writeJson(chars.exports, payload);
-    const raw = await chars.exports.readValue();
-    const bytes = new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
-    const text = new TextDecoder().decode(bytes);
-    if (text.startsWith('ERROR:')) {
-      setStatus(text);
+    const meta = await fetchExportMeta(type, options);
+    if (!meta || meta.error) {
+      setStatus(meta?.error || 'Export metadata unavailable');
       return;
     }
-    const blob = new Blob([bytes], { type: mime || 'text/plain' });
+    const size = Number(meta.size || 0);
+    if (!size) {
+      setStatus('Export file empty or missing');
+      return;
+    }
+    const chunks = [];
+    const chunkSize = 480;
+    let offset = 0;
+    while (offset < size) {
+      await writeJson(chars.exports, {
+        type,
+        offset,
+        length: chunkSize,
+        ...options
+      });
+      const raw = await chars.exports.readValue();
+      const bytes = new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+      if (!bytes.length) break;
+      chunks.push(bytes);
+      offset += bytes.length;
+    }
+    const blob = new Blob(chunks, { type: mime || 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = filename || `spectre_export_${Date.now()}`;
+    a.download = filename || meta.name || `spectre_export_${Date.now()}`;
     a.click();
   } catch (err) {
     setStatus(`Export failed: ${err.message}`);
+  }
+}
+
+async function fetchExportMeta(type, options) {
+  const payload = { type: `${type}_meta`, ...options };
+  await writeJson(chars.exports, payload);
+  const raw = await chars.exports.readValue();
+  const text = new TextDecoder().decode(raw).replace(/\0+$/, '');
+  if (text.startsWith('ERROR:')) {
+    return { error: text };
+  }
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    return { error: err.message };
   }
 }
 
@@ -1330,10 +1363,10 @@ document.getElementById('copyLogsBtn').addEventListener('click', () => {
 
 document.getElementById('refreshLogsBtn').addEventListener('click', loadLogs);
 document.getElementById('downloadLogsBtn').addEventListener('click', () => {
-  downloadExport(
+  downloadExportChunked(
+    'logs',
     {
-      type: 'logs',
-      max_bytes: 600000
+      max_bytes: 2000000
     },
     `spectre_logs_${new Date().toISOString().slice(0,10)}.log`,
     'text/plain'
