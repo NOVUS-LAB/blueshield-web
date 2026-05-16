@@ -199,6 +199,13 @@
     .log-filter-btn.f-ERR.active   { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.1); }
     .log-empty { color: var(--muted); font-size: 0.82rem; padding: 1rem 0.9rem; }
 
+    /* ── Field controls ── */
+    .mark-btn { width:100%; padding:1rem; font-size:1.1rem; font-weight:800; letter-spacing:0.05em; border-radius:12px; border:none; background:linear-gradient(135deg,#7c3aed,#4f46e5); color:#fff; cursor:pointer; transition:opacity .15s,transform .1s; box-shadow:0 4px 18px rgba(124,58,237,0.35); }
+    .mark-btn:active { transform:scale(0.97); }
+    .mark-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+    .freq-lock-row { display:flex; gap:0.5rem; align-items:center; }
+    .lock-badge { display:inline-flex; align-items:center; gap:0.35rem; padding:0.3rem 0.8rem; border-radius:999px; font-size:0.8rem; font-weight:700; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#f87171; }
+
     /* ── Results pre ── */
     pre.results { background: rgba(2,6,23,0.45); border-radius: 9px; padding: 0.65rem; font-size: 0.78rem; max-height: 150px; overflow-y: auto; color: var(--muted); margin-top: 0.75rem; font-family: monospace; border: 1px solid var(--border); }
 
@@ -230,6 +237,7 @@
 <!-- Tabs -->
 <nav class="tabs">
   <button class="tab active" data-tab="dashboard">Dashboard</button>
+  <button class="tab" data-tab="field">Field</button>
   <button class="tab" data-tab="scanner">Scanner</button>
   <button class="tab" data-tab="led">LED</button>
   <button class="tab" data-tab="settings">Settings</button>
@@ -294,6 +302,68 @@
         <div class="empty" id="detEmpty">No TETRA detections recorded this session.</div>
       </div>
     </div>
+  </div>
+
+  <!-- ── FIELD ── -->
+  <div class="panel" id="panel-field">
+
+    <!-- Bookmark -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">Bookmark</div>
+      <input type="text" id="markNote" placeholder="Optional note (e.g. 'Patrol car heading south')" style="margin-bottom:0.75rem;" />
+      <button class="mark-btn" id="markBtn">📍 Drop Marker</button>
+      <p style="color:var(--muted);font-size:0.75rem;margin-top:0.6rem;line-height:1.5;">
+        Inserts a timestamped MARK row into today's scan CSV so you can correlate interesting moments during post-session analysis.
+      </p>
+    </div>
+
+    <!-- Live threshold -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">Detection Threshold</div>
+      <div class="field">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;">
+          <span>Threshold (dB SNR)</span>
+          <span class="stat-val" id="thresholdDisplay">—</span>
+        </div>
+        <input type="range" id="thresholdSlider" min="2" max="40" step="0.5" value="10" />
+      </div>
+      <div class="btn-row" style="margin-top:0.75rem;">
+        <button class="btn btn-primary" id="applyThresholdBtn">Apply</button>
+        <p style="color:var(--muted);font-size:0.74rem;margin:auto 0;line-height:1.4;">Lower = more sensitive.<br>Higher = fewer false positives.</p>
+      </div>
+    </div>
+
+    <!-- Dwell time -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">Dwell Time per Frequency</div>
+      <div class="field">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;">
+          <span>Dwell (seconds)</span>
+          <span class="stat-val" id="dwellDisplay">—</span>
+        </div>
+        <input type="range" id="dwellSlider" min="0.5" max="10" step="0.5" value="2" />
+      </div>
+      <div class="btn-row" style="margin-top:0.75rem;">
+        <button class="btn btn-primary" id="applyDwellBtn">Apply</button>
+        <p style="color:var(--muted);font-size:0.74rem;margin:auto 0;line-height:1.4;">Shorter = faster sweeps.<br>Longer = more sensitive per channel.</p>
+      </div>
+    </div>
+
+    <!-- Frequency lock -->
+    <div class="card">
+      <div class="card-title">Frequency Lock</div>
+      <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;">
+        <input type="number" id="lockFreqInput" placeholder="MHz (e.g. 380.000)" step="0.001" style="flex:1;min-width:140px;" />
+        <button class="btn btn-primary" id="freqLockBtn">Lock</button>
+        <button class="btn btn-ghost" id="freqUnlockBtn">Unlock</button>
+      </div>
+      <div id="lockStatus" style="font-size:0.8rem;color:var(--muted);">Scanner hopping freely.</div>
+      <p style="color:var(--muted);font-size:0.74rem;margin-top:0.5rem;line-height:1.5;">
+        Lock forces the scanner to stay on one frequency — useful when you've spotted activity and want sustained monitoring.
+        Also locks to current displayed frequency if field is empty.
+      </p>
+    </div>
+
   </div>
 
   <!-- ── SCANNER ── -->
@@ -968,6 +1038,7 @@ async function loadSettings() {
     document.getElementById('ledBrightness').value = d.led_brightness;
     document.getElementById('brightnessVal').textContent = `${d.led_brightness}%`;
   }
+  syncFieldSliders(d);
 }
 
 document.getElementById('saveThemeBtn').addEventListener('click', async () => {
@@ -1261,6 +1332,95 @@ document.getElementById('revokeAllBtn').addEventListener('click', async () => {
     setStatus('All trusted devices revoked');
   } catch {
     if (bleDevice && bleDevice.gatt.connected) promptPin(() => document.getElementById('revokeAllBtn').click());
+  }
+});
+
+// ── Field controls ─────────────────────────────────────────────────────────
+let _freqLocked = false;
+
+// Threshold slider
+const threshSlider = document.getElementById('thresholdSlider');
+const threshDisplay = document.getElementById('thresholdDisplay');
+threshSlider.addEventListener('input', () => { threshDisplay.textContent = `${parseFloat(threshSlider.value).toFixed(1)} dB`; });
+
+// Dwell slider
+const dwellSlider = document.getElementById('dwellSlider');
+const dwellDisplay = document.getElementById('dwellDisplay');
+dwellSlider.addEventListener('input', () => { dwellDisplay.textContent = `${parseFloat(dwellSlider.value).toFixed(1)} s`; });
+
+// Sync sliders when settings load
+function syncFieldSliders(settings) {
+  if (typeof settings.threshold_db === 'number') {
+    threshSlider.value = settings.threshold_db;
+    threshDisplay.textContent = `${settings.threshold_db.toFixed(1)} dB`;
+  }
+  if (typeof settings.dwell_seconds === 'number') {
+    dwellSlider.value = settings.dwell_seconds;
+    dwellDisplay.textContent = `${settings.dwell_seconds.toFixed(1)} s`;
+  }
+}
+
+document.getElementById('applyThresholdBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  const val = parseFloat(threshSlider.value);
+  try {
+    await writeJson(chars.settings, { threshold_db: val });
+    setStatus(`Threshold set to ${val.toFixed(1)} dB`);
+  } catch { setStatus('Failed to apply threshold'); }
+});
+
+document.getElementById('applyDwellBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  const val = parseFloat(dwellSlider.value);
+  try {
+    await writeJson(chars.settings, { dwell_seconds: val });
+    setStatus(`Dwell set to ${val.toFixed(1)} s`);
+  } catch { setStatus('Failed to apply dwell'); }
+});
+
+// Frequency lock
+document.getElementById('freqLockBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  let mhz = parseFloat(document.getElementById('lockFreqInput').value);
+  // Fall back to currently displayed frequency
+  if (isNaN(mhz)) {
+    const txt = document.getElementById('freqVal').textContent;
+    mhz = parseFloat(txt);
+  }
+  if (isNaN(mhz) || mhz < 50) { setStatus('Enter a valid frequency to lock'); return; }
+  try {
+    await writeJson(chars.settings, { freq_lock: mhz * 1e6 });
+    _freqLocked = true;
+    document.getElementById('lockStatus').innerHTML =
+      `<span class="lock-badge">🔒 Locked — ${mhz.toFixed(3)} MHz</span>`;
+    setStatus(`Locked to ${mhz.toFixed(3)} MHz`);
+  } catch { setStatus('Failed to lock frequency'); }
+});
+
+document.getElementById('freqUnlockBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  try {
+    await writeJson(chars.settings, { freq_unlock: true });
+    _freqLocked = false;
+    document.getElementById('lockStatus').textContent = 'Scanner hopping freely.';
+    setStatus('Frequency lock released');
+  } catch { setStatus('Failed to release lock'); }
+});
+
+// Bookmark
+document.getElementById('markBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  const btn = document.getElementById('markBtn');
+  const note = document.getElementById('markNote').value.trim();
+  btn.disabled = true; btn.textContent = '📍 Marking…';
+  try {
+    await writeJson(chars.settings, { mark: note });
+    btn.textContent = '✅ Marked!';
+    document.getElementById('markNote').value = '';
+    setTimeout(() => { btn.textContent = '📍 Drop Marker'; btn.disabled = false; }, 1500);
+  } catch {
+    setStatus('Failed to drop marker');
+    btn.textContent = '📍 Drop Marker'; btn.disabled = false;
   }
 });
 
