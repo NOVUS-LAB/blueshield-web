@@ -517,6 +517,11 @@
         <span style="font-size:0.72rem;color:var(--muted);">Available scan logs</span>
         <select id="scanCsvSelect" style="min-width:220px;"></select>
       </div>
+      <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;">
+        <span style="font-size:0.72rem;color:var(--muted);">Summary scan logs</span>
+        <select id="summaryCsvSelect" style="min-width:220px;"></select>
+        <button class="btn btn-ghost" id="downloadSummaryCsvBtn" style="padding:0.35rem 0.75rem;font-size:0.78rem;">Summary CSV</button>
+      </div>
       <div id="historyCount" style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem;"></div>
       <div class="det-list" id="historyList">
         <div class="empty">Connect to load detection history.</div>
@@ -610,6 +615,7 @@ let logsTimer = null;
 let probeInterval = null;
 let renderedDetectionKeys = new Set();
 const scanList = [];
+const summaryList = [];
 const snrHistory = [];          // rolling 60-point sparkline buffer
 const SNR_MAX_HISTORY = 60;
 const SNR_CHART_MAX = 30;       // dB full-scale for sparkline
@@ -717,6 +723,7 @@ async function postConnectSetup() {
     await loadLogs();
     await loadDiagnostics();
     await loadScanList();
+    await loadSummaryList();
     await startPolling();
     setStatus('Connected');
   } catch (err) {
@@ -941,6 +948,23 @@ document.getElementById('downloadScanCsvBtn').addEventListener('click', () => {
   );
 });
 
+document.getElementById('downloadSummaryCsvBtn').addEventListener('click', () => {
+  const selected = document.getElementById('summaryCsvSelect').value;
+  const selectedDate = selected && selected.startsWith('summary_')
+    ? selected.replace('summary_', '').replace('.csv', '')
+    : '';
+  downloadExportChunked(
+    'summary_csv',
+    {
+      name: selected || undefined,
+      date: selectedDate || undefined,
+      max_bytes: 2000000
+    },
+    `spectre_summary_${selectedDate || 'latest'}.csv`,
+    'text/csv'
+  );
+});
+
 document.getElementById('refreshScanListBtn').addEventListener('click', loadScanList);
 
 async function downloadExportChunked(type, options, filename, mime) {
@@ -985,6 +1009,8 @@ async function downloadExportChunked(type, options, filename, mime) {
 async function fetchExportMeta(type, options) {
   const metaType = type === 'scan_csv'
     ? 'scan_meta'
+    : type === 'summary_csv'
+      ? 'summary_meta'
     : type === 'logs'
       ? 'logs_meta'
       : `${type}_meta`;
@@ -1033,6 +1059,45 @@ function renderScanList() {
     return;
   }
   scanList.slice().reverse().forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item.name;
+    const sizeKb = item.size ? `${Math.round(item.size / 1024)} KB` : '0 KB';
+    opt.textContent = `${item.date || item.name} (${sizeKb})`;
+    select.appendChild(opt);
+  });
+}
+
+async function loadSummaryList() {
+  if (!chars.exports) return;
+  try {
+    await writeJson(chars.exports, { type: 'summary_list' });
+    const raw = await chars.exports.readValue();
+    const text = new TextDecoder().decode(raw).replace(/\0+$/, '');
+    if (text.startsWith('ERROR:')) {
+      setStatus(text);
+      return;
+    }
+    const payload = JSON.parse(text);
+    const files = Array.isArray(payload.files) ? payload.files : [];
+    summaryList.length = 0;
+    files.forEach(item => summaryList.push(item));
+    renderSummaryList();
+  } catch (err) {
+    setStatus(`Summary list failed: ${err.message}`);
+  }
+}
+
+function renderSummaryList() {
+  const select = document.getElementById('summaryCsvSelect');
+  select.innerHTML = '';
+  if (!summaryList.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No summary logs found';
+    select.appendChild(opt);
+    return;
+  }
+  summaryList.slice().reverse().forEach(item => {
     const opt = document.createElement('option');
     opt.value = item.name;
     const sizeKb = item.size ? `${Math.round(item.size / 1024)} KB` : '0 KB';
