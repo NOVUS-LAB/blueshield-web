@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectre 380</title>
+  <style>
+    :root {
+      --bg: #020617;
+      --surface: #0f172a;
+      --surface2: #1e293b;
+      --border: rgba(148,163,184,0.12);
+      --accent: #38bdf8;
+      --text: #f1f5f9;
+      --muted: #64748b;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      font-family: "Space Grotesk","Segoe UI",system-ui,sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      background: rgba(15,23,42,0.96);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      padding: 0.7rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand { font-size: 1rem; font-weight: 800; letter-spacing: 0.14em; color: var(--accent); flex-shrink: 0; }
+    .hdr-device { flex: 1; min-width: 0; }
+    .hdr-name { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hdr-sub { font-size: 0.72rem; color: var(--muted); }
+    .conn-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: background 0.3s; }
+    .conn-dot.on  { background: var(--green); box-shadow: 0 0 7px var(--green); }
+    .conn-dot.wait { background: var(--yellow); animation: blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .connect-btn { padding: 0.45rem 1.1rem; border-radius: 999px; border: none; background: var(--accent); color: #0f172a; font-weight: 700; font-size: 0.85rem; cursor: pointer; flex-shrink: 0; }
+    .connect-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Status bar ── */
+    .statusbar { background: rgba(15,23,42,0.6); padding: 0.3rem 1.25rem; font-size: 0.78rem; color: var(--muted); border-bottom: 1px solid var(--border); min-height: 1.8rem; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 0.75rem; overflow-x: auto; flex-shrink: 0; }
+    .tab { padding: 0.65rem 1.1rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); font-size: 0.88rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: color 150ms, border-color 150ms; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Content ── */
+    .content { flex: 1; overflow-y: auto; padding: 1.25rem; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Grid ── */
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .gap { margin-top: 1rem; }
+
+    /* ── Cards ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem; }
+    .card-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.9rem; }
+
+    /* ── Live Signal card ── */
+    .signal-card {
+      background: linear-gradient(155deg, rgba(15,23,42,0.97) 0%, rgba(2,6,23,0.99) 100%);
+      border-color: rgba(56,189,248,0.2);
+      transition: box-shadow 0.7s ease, border-color 0.7s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Slow radar sweep across the card */
+    .signal-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -50%; width: 35%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(56,189,248,0.04), transparent);
+      animation: sig-sweep 6s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes sig-sweep { from { left: -50%; } to { left: 150%; } }
+
+    /* ── Live SNR number ── */
+    .snr-row { display: flex; align-items: flex-end; gap: 0.55rem; margin-bottom: 0.65rem; }
+    .snr-val {
+      font-size: 5.2rem; font-weight: 900; line-height: 1;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+      transition: color 0.5s ease, text-shadow 0.5s ease;
+      color: var(--accent);
+    }
+    .snr-unit-col { display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 0.55rem; gap: 0.05rem; }
+    .snr-unit { font-size: 1.05rem; font-weight: 700; color: var(--muted); line-height: 1.1; }
+    .snr-sublabel { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); opacity: 0.7; }
+
+    /* ── Bar ── */
+    .bar-track { height: 5px; background: rgba(30,41,59,0.9); border-radius: 999px; overflow: hidden; margin-bottom: 0.45rem; }
+    .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #22c55e 0%, #f59e0b 55%, #ef4444 100%); width: 0%; transition: width 0.45s ease; }
+    .snr-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.6rem; opacity: 0.7; }
+
+    /* ── Sparkline ── */
+    .sparkline-wrap { margin: 0.4rem 0 0.65rem; border-radius: 8px; overflow: hidden; }
+    .sparkline-wrap svg { width: 100%; height: 68px; display: block; }
+
+    /* ── Freq badge ── */
+    .freq-badge { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.38rem 0.95rem; border-radius: 999px; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); font-size: 0.9rem; font-weight: 700; color: var(--accent); transition: border-color 0.5s, color 0.5s; letter-spacing: 0.01em; }
+
+    /* ── Scan dot with pulse ring ── */
+    .scan-dot { position: relative; display: inline-block; width: 8px; height: 8px; flex-shrink: 0; }
+    .scan-dot::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--accent); animation: blink 1.5s ease-in-out infinite; }
+    .scan-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--accent); animation: dot-ring 2s ease-out infinite; opacity: 0; }
+    @keyframes dot-ring { 0%{transform:scale(0.4);opacity:0.9} 100%{transform:scale(2.4);opacity:0} }
+
+    /* ── Trust banner ── */
+    .trust-banner { display:none; background:rgba(56,189,248,0.07); border:1px solid rgba(56,189,248,0.2); border-radius:10px; padding:0.65rem 0.9rem; margin-top:0.75rem; font-size:0.82rem; color:var(--muted); align-items:center; gap:0.75rem; }
+    .trust-banner.show { display:flex; }
+    .trust-banner strong { color:var(--text); }
+
+    /* ── Temp chip ── */
+    .temp-chip { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.78rem; color:var(--muted); }
+
+    /* ── Stat rows ── */
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-lbl { color: var(--muted); font-size: 0.78rem; }
+    .stat-val { font-weight: 600; }
+
+    /* ── Detection list ── */
+    .det-list { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.5rem; }
+    .det-item { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.85rem; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); animation: slidein 0.25s ease; }
+    @keyframes slidein { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:none} }
+    .det-freq { font-weight: 700; color: var(--accent); font-size: 0.9rem; }
+    .det-time { color: var(--muted); font-size: 0.75rem; margin-top: 0.1rem; }
+    .snr-chip { padding: 0.18rem 0.55rem; border-radius: 999px; font-weight: 700; font-size: 0.78rem; }
+    .chip-lo { background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.28); }
+    .chip-md { background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.28); }
+    .chip-hi { background:rgba(239,68,68,0.12); color:#f87171; border:1px solid rgba(239,68,68,0.28); }
+    .empty { text-align: center; padding: 1.8rem; color: var(--muted); font-size: 0.85rem; }
+
+    /* ── Form elements ── */
+    .field { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    input[type="text"], input[type="number"], select {
+      padding: 0.5rem 0.75rem; border-radius: 9px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); font-size: 0.92rem; width: 100%;
+    }
+    input[type="range"] { width: 100%; accent-color: var(--accent); margin-top: 0.2rem; }
+    .range-val { font-size: 0.82rem; color: var(--text); margin-top: 0.2rem; }
+
+    /* ── Buttons ── */
+    .btn { padding: 0.62rem 1.1rem; border-radius: 9px; border: none; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: opacity 150ms; }
+    .btn:disabled { opacity: 0.38; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #0f172a; }
+    .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-success { background: linear-gradient(120deg,#34d399,#10b981); color: #041316; }
+    .btn-danger { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+    .btn-full { width: 100%; }
+    .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; align-items: center; }
+    .btn-row .btn { flex: 1 1 100px; }
+
+    /* ── Meter ── */
+    .meter-card { margin-top: 0.75rem; padding: 0.8rem; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); }
+    .meter-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; font-size: 0.82rem; }
+    .meter-track { height: 5px; border-radius: 999px; background: var(--surface); overflow: hidden; }
+    .meter-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg,#22c55e,#f59e0b,#ef4444); width: 0%; transition: width 0.3s ease; }
+
+    /* ── LED strip ── */
+    .led-strip { display: grid; grid-template-columns: repeat(8,1fr); gap: 0.35rem; margin: 0.75rem 0; }
+    .led-cell { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; font-size: 0.68rem; color: var(--muted); }
+    .led-cell input[type="color"] { width: 100%; height: 34px; border: none; border-radius: 7px; padding: 2px; background: var(--surface2); cursor: pointer; }
+
+    /* ── Pill ── */
+    .pill { display: inline-flex; padding: 0.22rem 0.65rem; border-radius: 999px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); font-size: 0.78rem; font-weight: 600; color: var(--accent); }
+
+    /* ── Logs ── */
+    .log-box { background: rgba(2,6,23,0.55); border-radius: 10px; padding: 0.5rem 0; max-height: 520px; overflow-y: auto; border: 1px solid var(--border); }
+    .log-line { display: grid; grid-template-columns: 6.2rem 4.4rem 7rem 1fr; gap: 0 0.5rem; align-items: baseline; padding: 0.2rem 0.75rem; border-bottom: 1px solid rgba(148,163,184,0.05); font-size: 0.76rem; font-family: "JetBrains Mono","Fira Code",monospace; line-height: 1.6; }
+    .log-line:last-child { border-bottom: none; }
+    .log-line:hover { background: rgba(148,163,184,0.04); }
+    .log-ts  { color: var(--muted); font-size: 0.71rem; white-space: nowrap; }
+    .log-lvl { font-weight: 700; font-size: 0.68rem; letter-spacing: 0.04em; border-radius: 3px; padding: 0.05rem 0.3rem; text-align: center; }
+    .log-name { color: #7dd3fc; font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-msg  { color: #cbd5e1; word-break: break-word; }
+    .lvl-DEBUG    .log-lvl { background: rgba(100,116,139,0.25); color: #94a3b8; }
+    .lvl-INFO     .log-lvl { background: rgba(56,189,248,0.15); color: #38bdf8; }
+    .lvl-WARNING  .log-lvl { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .lvl-WARNING  .log-msg  { color: #fde68a; }
+    .lvl-ERROR    .log-lvl { background: rgba(248,113,113,0.2); color: #f87171; }
+    .lvl-ERROR    .log-msg  { color: #fca5a5; }
+    .lvl-CRITICAL .log-lvl { background: rgba(239,68,68,0.35); color: #fff; }
+    .lvl-CRITICAL .log-msg  { color: #fca5a5; font-weight: 600; }
+    .log-filters { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .log-filter-btn { padding: 0.25rem 0.65rem; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .log-filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.1); }
+    .log-filter-btn.f-WARN.active  { border-color: #fbbf24; color: #fbbf24; background: rgba(251,191,36,0.1); }
+    .log-filter-btn.f-ERR.active   { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.1); }
+    .log-empty { color: var(--muted); font-size: 0.82rem; padding: 1rem 0.9rem; }
+
+    /* ── Results pre ── */
+    pre.results { background: rgba(2,6,23,0.45); border-radius: 9px; padding: 0.65rem; font-size: 0.78rem; max-height: 150px; overflow-y: auto; color: var(--muted); margin-top: 0.75rem; font-family: monospace; border: 1px solid var(--border); }
+
+    /* ── PIN modal ── */
+    #pin-modal { position:fixed; inset:0; z-index:999; background:rgba(2,6,23,0.94); backdrop-filter:blur(12px); display:none; align-items:center; justify-content:center; }
+    .pin-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:2rem 1.6rem; max-width:370px; width:92%; text-align:center; box-shadow:0 24px 64px rgba(0,0,0,0.6); }
+    .pin-digit { width:54px; height:60px; font-size:1.8rem; font-weight:800; text-align:center; border-radius:12px; border:2px solid var(--border); background:var(--surface2); color:var(--text); outline:none; transition:border-color 180ms,box-shadow 180ms; font-family:inherit; }
+    .pin-digit:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(56,189,248,0.18); }
+    .pin-digit.shake { animation:pinshake 0.32s ease; border-color:var(--red); }
+    @keyframes pinshake { 0%,100%{transform:none} 20%{transform:translateX(-5px)} 60%{transform:translateX(5px)} }
+
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="brand">SPECTRE 380</div>
+  <div class="hdr-device">
+    <div class="hdr-name" id="hdrName">Not connected</div>
+    <div class="hdr-sub" id="hdrSub">—</div>
+  </div>
+  <div class="conn-dot" id="connDot"></div>
+  <button class="connect-btn" id="connectBtn">Connect</button>
+</header>
+
+<div class="statusbar" id="statusbar">Tap Connect to pair via Bluetooth.</div>
+
+<!-- Tabs -->
+<nav class="tabs">
+  <button class="tab active" data-tab="dashboard">Dashboard</button>
+  <button class="tab" data-tab="scanner">Scanner</button>
+  <button class="tab" data-tab="led">LED</button>
+  <button class="tab" data-tab="settings">Settings</button>
+  <button class="tab" data-tab="history">History</button>
+  <button class="tab" data-tab="logs">Logs</button>
+</nav>
+
+<div class="content">
+
+  <!-- ── DASHBOARD ── -->
+  <div class="panel active" id="panel-dashboard">
+    <div class="grid2">
+
+      <div class="card signal-card" id="signalCard">
+        <div class="card-title">Live Signal</div>
+        <div class="snr-row">
+          <div class="snr-val" id="snrVal">—</div>
+          <div class="snr-unit-col">
+            <span class="snr-unit">dB</span>
+            <span class="snr-sublabel">SNR</span>
+          </div>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="snrFill"></div></div>
+        <div class="snr-meta">
+          <span>0 dB</span>
+          <span id="snrPeak">Peak —</span>
+          <span>30 dB</span>
+        </div>
+        <div class="sparkline-wrap">
+          <svg id="sparklineSvg" viewBox="0 0 300 68" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop id="sparkGradTop" offset="0%" stop-color="rgba(56,189,248,0.35)"/>
+                <stop offset="100%" stop-color="rgba(56,189,248,0)"/>
+              </linearGradient>
+            </defs>
+            <path id="sparklineFill" fill="url(#sparkGrad)"/>
+            <polyline id="sparklineLine" points="" fill="none" stroke="rgba(56,189,248,0.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            <line x1="0" y1="45" x2="300" y2="45" stroke="rgba(239,68,68,0.3)" stroke-width="1" stroke-dasharray="4,4"/>
+          </svg>
+        </div>
+        <div class="freq-badge" id="freqBadge">
+          <span class="scan-dot"></span>
+          <span id="freqVal">Not scanning</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Device Status</div>
+        <div class="stat-row"><span class="stat-lbl">Device</span><span class="stat-val" id="dName">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Serial</span><span class="stat-val" id="dSerial">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Version</span><span class="stat-val" id="dVersion">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Uptime</span><span class="stat-val" id="dUptime">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Detections</span><span class="stat-val" id="dDetections">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">CPU Temp</span><span class="stat-val temp-chip" id="dTemp">—</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Detection History</div>
+      <div class="det-list" id="detList">
+        <div class="empty" id="detEmpty">No TETRA detections recorded this session.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SCANNER ── -->
+  <div class="panel" id="panel-scanner">
+    <div class="card">
+      <div class="card-title">Live Spectrum Probe</div>
+      <p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.9rem;">Park the tuner on any frequency and stream live SNR readings. Use this to find active TETRA uplink channels in your area before updating the fleet sweep range.</p>
+      <div class="grid2">
+        <label class="field">Frequency (MHz)
+          <input type="number" id="probeFreq" step="0.0125" min="360" max="460" value="382.0" />
+        </label>
+        <label class="field">Sample Window (seconds)
+          <input type="number" id="probeDur" step="0.5" min="1" max="15" value="4" />
+        </label>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="probeRunBtn">Probe Frequency</button>
+        <span class="pill" id="probeStatus">Idle</span>
+      </div>
+      <div class="meter-card">
+        <div class="meter-row">
+          <span style="color:var(--muted);">Live Reading</span>
+          <span style="font-weight:700;" id="probeReading">— dB SNR</span>
+        </div>
+        <div class="meter-track"><div class="meter-fill" id="probeMeter"></div></div>
+      </div>
+      <pre class="results" id="probeHistory">(no samples yet)</pre>
+    </div>
+
+    <div class="card gap">
+      <div class="card-title">Sweet Spot Calibration</div>
+      <p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.9rem;">Benchmarks several retune delay values and selects the fastest that keeps the R828D PLL stable. Run after changing hardware or antenna.</p>
+      <label class="field">Delay Candidates (seconds, comma-separated)
+        <input type="text" id="sweetPlan" value="0.05,0.1,0.2,0.35,0.5" />
+      </label>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="sweetRunBtn">Run Calibration</button>
+        <button class="btn btn-ghost" id="diagRefreshBtn">Refresh</button>
+        <span class="pill" id="sweetStatus">Idle</span>
+      </div>
+      <pre class="results" id="sweetResults">(no calibration data yet)</pre>
+    </div>
+  </div>
+
+  <!-- ── LED ── -->
+  <div class="panel" id="panel-led">
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">Theme & Brightness</div>
+        <label class="field">Theme
+          <select id="ledTheme">
+            <option value="spectre">Spectre</option>
+            <option value="stealth">Stealth</option>
+            <option value="sunburst">Sunburst</option>
+            <option value="cyber">Cyber</option>
+            <option value="ember">Ember</option>
+            <option value="arctic">Arctic</option>
+          </select>
+        </label>
+        <label class="field" style="margin-top:0.75rem;">Brightness
+          <input type="range" min="5" max="100" value="40" id="ledBrightness" />
+          <span class="range-val" id="brightnessVal">40%</span>
+        </label>
+        <button class="btn btn-primary btn-full gap" id="saveThemeBtn">Save Theme</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Test Patterns</div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" data-pattern="idle">Idle</button>
+          <button class="btn btn-ghost" data-pattern="alert">Alert</button>
+          <button class="btn btn-ghost" data-pattern="update">Update</button>
+          <button class="btn btn-ghost" data-pattern="detection">Detection</button>
+        </div>
+        <div class="card-title" style="margin-top:1rem;">Signal Wave Preview</div>
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.4rem;">
+          <input type="range" min="5" max="100" value="75" id="signalLevel" style="flex:1;" />
+          <span class="pill" id="signalLevelVal">75%</span>
+        </div>
+        <button class="btn btn-full gap" id="signalTestBtn" style="background:linear-gradient(115deg,#22c55e,#facc15,#ef4444);color:#020617;">Play Signal Wave</button>
+      </div>
+    </div>
+
+    <div class="card gap">
+      <div class="card-title">Manual LED Lab</div>
+      <p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.5rem;">Set individual colors for each of the 8 Blinkt LEDs, preview them, then lock the pattern in place.</p>
+      <div class="led-strip" id="ledStrip"></div>
+      <div class="grid2" style="margin-top:0.5rem;">
+        <label class="field">Brightness
+          <input type="range" min="5" max="100" value="60" id="manualBrightness" />
+          <span class="range-val" id="manualBrightnessVal">60%</span>
+        </label>
+        <label class="field">Preview Duration (s)
+          <input type="number" id="manualDuration" min="1" max="15" step="0.5" value="4" />
+        </label>
+      </div>
+      <div class="btn-row gap">
+        <button class="btn btn-ghost" id="manualPreviewBtn">Preview</button>
+        <button class="btn btn-success" id="manualApplyBtn">Hold Pattern</button>
+        <button class="btn btn-danger" id="manualReleaseBtn">Release</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS ── -->
+  <div class="panel" id="panel-settings">
+    <div class="card">
+      <div class="card-title">Audio</div>
+      <label class="field">Speaker Volume
+        <input type="range" min="0" max="100" value="70" id="volume" />
+        <span class="range-val" id="volumeVal">70%</span>
+      </label>
+      <label class="field" style="margin-top:0.75rem;">Alert Sound
+        <select id="sound">
+          <option value="pulse">Pulse</option>
+          <option value="siren">Siren</option>
+          <option value="chime">Chime</option>
+          <option value="stealth">Stealth</option>
+        </select>
+      </label>
+      <button class="btn btn-primary btn-full gap" id="saveSettingsBtn">Save Settings</button>
+    </div>
+    <div class="card gap">
+      <div class="card-title">Device</div>
+      <p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.75rem;">Check for a pending balena update and apply it immediately.</p>
+      <button class="btn btn-ghost btn-full" id="otaBtn">Check for Update</button>
+      <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:1rem;">
+        <p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.75rem;">Revoke all remembered devices — they will need to re-enter the PIN next time.</p>
+        <button class="btn btn-danger btn-full" id="revokeAllBtn">Revoke All Trusted Devices</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HISTORY ── -->
+  <div class="panel" id="panel-history">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <div class="card-title" style="margin:0;">Detection History</div>
+        <div style="display:flex;gap:0.6rem;">
+          <button class="btn btn-ghost" id="refreshHistoryBtn" style="padding:0.35rem 0.75rem;font-size:0.78rem;">Refresh</button>
+          <button class="btn btn-primary" id="downloadHistoryBtn" style="padding:0.35rem 0.75rem;font-size:0.78rem;">Export CSV</button>
+        </div>
+      </div>
+      <div id="historyCount" style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem;"></div>
+      <div class="det-list" id="historyList">
+        <div class="empty">Connect to load detection history.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LOGS ── -->
+  <div class="panel" id="panel-logs">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.75rem;gap:0.75rem;flex-wrap:wrap;">
+        <div>
+          <div class="card-title" style="margin:0 0 0.5rem;">Device Logs</div>
+          <div class="log-filters">
+            <button class="log-filter-btn active" data-lvl="ALL">ALL</button>
+            <button class="log-filter-btn f-WARN" data-lvl="WARNING">WARN</button>
+            <button class="log-filter-btn f-ERR"  data-lvl="ERROR">ERROR</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-shrink:0;">
+          <span id="logCount" style="font-size:0.72rem;color:var(--muted);"></span>
+          <label style="font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:0.35rem;cursor:pointer;">
+            <input type="checkbox" id="autoRefreshLogs" checked /> Live
+          </label>
+          <button class="btn btn-ghost" id="copyLogsBtn" style="padding:0.35rem 0.75rem;font-size:0.78rem;">Copy</button>
+          <button class="btn btn-ghost" id="refreshLogsBtn" style="padding:0.35rem 0.75rem;font-size:0.78rem;">Refresh</button>
+        </div>
+      </div>
+      <div class="log-box" id="logBox">
+        <div class="log-empty">(connect to view logs)</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .content -->
+
+<!-- ── BLE PIN Modal ──────────────────────────────────────────────────────────── -->
+<div id="pin-modal">
+  <div class="pin-card">
+    <div style="font-size:2rem;margin-bottom:0.4rem;">🔒</div>
+    <div style="font-size:1.1rem;font-weight:800;margin-bottom:0.5rem;">Enter Device PIN</div>
+    <p style="color:var(--muted);font-size:0.82rem;line-height:1.65;margin-bottom:1.1rem;">
+      Look at the LED strip on your device.<br>
+      Each digit is shown as <strong style="color:#f1f5f9;">lit LEDs from the left</strong> — count them.<br>
+      Digits cycle one at a time, 1 through 8.
+    </p>
+    <div style="display:flex;justify-content:center;gap:0.55rem;margin-bottom:0.8rem;">
+      <input type="text" class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off" />
+      <input type="text" class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off" />
+      <input type="text" class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off" />
+      <input type="text" class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off" />
+    </div>
+    <div id="pin-error" style="color:var(--red);font-size:0.8rem;min-height:1.1rem;margin-bottom:0.7rem;"></div>
+    <button id="pin-submit-btn" class="btn btn-primary btn-full">Unlock</button>
+    <button class="btn btn-ghost btn-full" style="margin-top:0.5rem;" onclick="cancelPinModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- ── Trust banner (shown after successful PIN auth) ──────────────────────── -->
+<div id="trust-banner" class="trust-banner" style="position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);max-width:420px;width:90%;z-index:998;">
+  <div style="flex:1"><strong>Remember this device?</strong><br>Skip the PIN next time on this browser.</div>
+  <button class="btn btn-primary" style="padding:0.4rem 0.85rem;font-size:0.82rem;" onclick="trustDevice()">Remember</button>
+  <button class="btn btn-ghost" style="padding:0.4rem 0.6rem;font-size:0.82rem;" onclick="dismissTrustBanner()">✕</button>
+</div>
+
+<script>
+const UUIDS = {
+  service:     'e5a00000-a5f5-4d4f-a46d-d2e612e5a000',
+  info:        'e5a00001-a5f5-4d4f-a46d-d2e612e5a000',
+  settings:    'e5a00002-a5f5-4d4f-a46d-d2e612e5a000',
+  logs:        'e5a00003-a5f5-4d4f-a46d-d2e612e5a000',
+  diagnostics: 'e5a00004-a5f5-4d4f-a46d-d2e612e5a000',
+  status:      'e5a00005-a5f5-4d4f-a46d-d2e612e5a000',
+  auth:        'e5a00006-a5f5-4d4f-a46d-d2e612e5a000',
+  detections:  'e5a00007-a5f5-4d4f-a46d-d2e612e5a000',
+};
+
+// ── State ──────────────────────────────────────────────────────────────────
+let bleDevice = null;
+let chars = {};
+let pollTimer = null;
+let logsTimer = null;
+let probeInterval = null;
+let renderedDetectionKeys = new Set();
+const snrHistory = [];          // rolling 60-point sparkline buffer
+const SNR_MAX_HISTORY = 60;
+const SNR_CHART_MAX = 30;       // dB full-scale for sparkline
+
+// ── BLE helpers ────────────────────────────────────────────────────────────
+async function readJson(char) {
+  const val = await char.readValue();
+  const text = new TextDecoder().decode(val).replace(/\0+$/, '');
+  try { return JSON.parse(text); } catch { return { __raw: text }; }
+}
+async function writeJson(char, payload) {
+  await char.writeValue(new TextEncoder().encode(JSON.stringify(payload)));
+}
+function setStatus(msg) { document.getElementById('statusbar').textContent = msg; }
+
+// ── Connection ─────────────────────────────────────────────────────────────
+function onBleDisconnect() {
+  const btn = document.getElementById('connectBtn');
+  btn.disabled = false;
+  btn.textContent = 'Connect';
+  document.getElementById('connDot').className = 'conn-dot';
+  setStatus('Disconnected — tap Connect to reconnect.');
+  stopPolling();
+  hidePinModal();
+  chars = {};  // drop stale characteristic refs
+  document.getElementById('freqVal').textContent = 'Not scanning';
+  const snrEl = document.getElementById('snrVal');
+  snrEl.textContent = '—';
+  snrEl.style.color = 'var(--accent)';
+  snrEl.style.textShadow = '';
+  document.getElementById('signalCard').style.boxShadow = '';
+  document.getElementById('signalCard').style.borderColor = '';
+  document.getElementById('freqBadge').style.color = '';
+  document.getElementById('freqBadge').style.borderColor = '';
+}
+
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('connectBtn');
+  const dot = document.getElementById('connDot');
+  try {
+    setStatus('Requesting device…');
+    dot.className = 'conn-dot wait';
+    btn.disabled = true;
+
+    bleDevice = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: [UUIDS.service],
+    });
+    bleDevice.addEventListener('gattserverdisconnected', onBleDisconnect);
+
+    setStatus('Connecting…');
+    const server = await bleDevice.gatt.connect();
+    const svc = await server.getPrimaryService(UUIDS.service);
+
+    const charNames = ['info','settings','logs','diagnostics','status','auth','detections'];
+    const results = await Promise.allSettled(charNames.map(k => svc.getCharacteristic(UUIDS[k])));
+    chars = {};
+    charNames.forEach((k, i) => { if (results[i].status === 'fulfilled') chars[k] = results[i].value; });
+
+    dot.className = 'conn-dot on';
+    btn.textContent = 'Connected';
+    await postConnectSetup();
+  } catch (err) {
+    document.getElementById('connDot').className = 'conn-dot';
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+    setStatus(`Connection failed: ${err.message}`);
+  }
+});
+
+async function postConnectSetup() {
+  try {
+    setStatus('Connected — authenticating…');
+
+    // Reading the auth characteristic is the explicit PIN-display trigger.
+    // The char has no encrypt flags so it always reaches the device Python handler
+    // regardless of whether OS-level BLE bonding has completed yet.
+    // Response: { authenticated: bool, locked_until: float|null }
+    let authenticated = false;
+    if (chars.auth) {
+      try {
+        const authState = await readJson(chars.auth);
+        authenticated = authState.authenticated === true;
+      } catch {
+        // If even this open read fails the BLE stack has deeper issues; continue
+        // and let the subsequent encrypted reads surface the error.
+      }
+    }
+
+    // If device says we're not authenticated, try a stored trusted-device token.
+    if (!authenticated) {
+      authenticated = await tryTrustedAuth();
+    }
+
+    // Still not authenticated — device LEDs are now showing the PIN; prompt user.
+    if (!authenticated) {
+      setStatus('PIN required — check device LEDs');
+      promptPin(() => postConnectSetup());
+      return;
+    }
+
+    // Authenticated — load all data.
+    await loadDeviceInfo();
+    await loadSettings();
+    await loadLogs();
+    await loadDiagnostics();
+    await startPolling();
+    setStatus('Connected');
+  } catch (err) {
+    // Only show the PIN modal if the device is still connected.
+    if (bleDevice && bleDevice.gatt.connected) {
+      setStatus('PIN required — check device LEDs');
+      promptPin(() => postConnectSetup());
+    } else {
+      setStatus(`Connection failed: ${err.message}`);
+    }
+  }
+}
+
+// ── Live status: GATT notify + poll heartbeat ─────────────────────────────
+async function startPolling() {
+  stopPolling();
+
+  // Subscribe to GATT notifications for low-latency updates.
+  // The poll below always runs too — notifications can fail silently and the
+  // poll is the reliable fallback that keeps the UI in sync.
+  if (chars.status) {
+    try {
+      await chars.status.startNotifications();
+      chars.status.addEventListener('characteristicvaluechanged', e => {
+        const text = new TextDecoder().decode(e.target.value).replace(/\0+$/, '');
+        try { updateLiveStatus(JSON.parse(text)); } catch {}
+      });
+      setStatus('Connected (live)');
+    } catch {
+      // Notifications unsupported or failed — poll-only mode.
+    }
+  }
+
+  // Poll every 3 s regardless of notification state.  This both acts as a
+  // heartbeat and catches any notifications that were silently dropped.
+  pollTimer = setInterval(async () => {
+    if (!chars.status) return;
+    try {
+      const s = await readJson(chars.status);
+      if (!s.__raw) updateLiveStatus(s);
+    } catch {
+      if (bleDevice && bleDevice.gatt.connected && !_pinCallback) {
+        setStatus('Session expired — re-enter PIN');
+        stopPolling();
+        promptPin(() => postConnectSetup());
+      }
+    }
+  }, 3000);
+
+  if (document.getElementById('autoRefreshLogs').checked) {
+    logsTimer = setInterval(loadLogs, 5000);
+  }
+}
+
+function stopPolling() {
+  clearInterval(pollTimer); pollTimer = null;
+  clearInterval(logsTimer); logsTimer = null;
+  if (chars.status) {
+    chars.status.stopNotifications().catch(() => {});
+  }
+}
+
+// ── PIN Modal ──────────────────────────────────────────────────────────────
+document.querySelectorAll('.pin-digit').forEach((inp, idx, all) => {
+  inp.addEventListener('input', e => {
+    const v = e.target.value.replace(/[^1-8]/g, '');
+    e.target.value = v ? v.slice(-1) : '';
+    if (v && idx < all.length - 1) all[idx + 1].focus();
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !inp.value && idx > 0) { e.preventDefault(); all[idx - 1].focus(); }
+    if (e.key === 'Enter') submitPin();
+  });
+});
+
+document.getElementById('pin-submit-btn').addEventListener('click', submitPin);
+
+let _pinCallback = null;
+function promptPin(callback) {
+  _pinCallback = typeof callback === 'function' ? callback : null;
+  document.querySelectorAll('.pin-digit').forEach(i => { i.value = ''; i.classList.remove('shake'); });
+  document.getElementById('pin-error').textContent = '';
+  document.getElementById('pin-modal').style.display = 'flex';
+  setTimeout(() => { const f = document.querySelector('.pin-digit'); if (f) f.focus(); }, 80);
+}
+
+function hidePinModal() { document.getElementById('pin-modal').style.display = 'none'; }
+
+function cancelPinModal() {
+  hidePinModal();
+  if (bleDevice) bleDevice.gatt.disconnect();
+}
+
+async function submitPin() {
+  const digits = [...document.querySelectorAll('.pin-digit')].map(i => i.value.trim());
+  if (digits.some(d => !d || !/^[1-8]$/.test(d))) {
+    document.getElementById('pin-error').textContent = 'Enter all 4 digits (each 1–8).';
+    document.querySelectorAll('.pin-digit').forEach(i => { i.classList.add('shake'); setTimeout(() => i.classList.remove('shake'), 400); });
+    return;
+  }
+  if (!chars.auth) { document.getElementById('pin-error').textContent = 'Auth characteristic unavailable.'; return; }
+  const btn = document.getElementById('pin-submit-btn');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    await chars.auth.writeValue(new TextEncoder().encode(digits.join('')));
+    hidePinModal();
+    setStatus('Authenticated');
+    if (_pinCallback) { const cb = _pinCallback; _pinCallback = null; cb(); }
+    // Offer to remember this device unless already trusted
+    if (!localStorage.getItem('spectre_trust_token')) {
+      document.getElementById('trust-banner').classList.add('show');
+    }
+  } catch {
+    document.getElementById('pin-error').textContent = 'Incorrect PIN — count the lit LEDs on your device.';
+    document.querySelectorAll('.pin-digit').forEach(i => { i.classList.add('shake'); setTimeout(() => i.classList.remove('shake'), 400); });
+    document.querySelectorAll('.pin-digit').forEach(i => i.value = '');
+    setTimeout(() => { const f = document.querySelector('.pin-digit'); if (f) f.focus(); }, 80);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Unlock';
+  }
+}
+
+// ── Trusted device ─────────────────────────────────────────────────────────
+async function tryTrustedAuth() {
+  const token = localStorage.getItem('spectre_trust_token');
+  if (!token || !chars.auth) return false;
+  try {
+    await chars.auth.writeValue(new TextEncoder().encode(`AUTH:${token}`));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function trustDevice() {
+  if (!chars.auth) return;
+  let token = localStorage.getItem('spectre_trust_token');
+  if (!token) {
+    // Generate a random 32-byte token
+    const arr = new Uint8Array(32);
+    crypto.getRandomValues(arr);
+    token = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem('spectre_trust_token', token);
+  }
+  try {
+    await chars.auth.writeValue(new TextEncoder().encode(`REGISTER:${token}`));
+    dismissTrustBanner();
+    setStatus('Device remembered — PIN not required next time');
+  } catch {
+    setStatus('Failed to register device');
+  }
+}
+
+function dismissTrustBanner() {
+  document.getElementById('trust-banner').classList.remove('show');
+}
+
+// ── History panel ──────────────────────────────────────────────────────────
+async function loadHistory() {
+  if (!chars.detections) return;
+  try {
+    const data = await readJson(chars.detections);
+    if (!Array.isArray(data)) return;
+    const list = document.getElementById('historyList');
+    const count = document.getElementById('historyCount');
+    count.textContent = `${data.length} detection${data.length !== 1 ? 's' : ''} on record`;
+    if (!data.length) {
+      list.innerHTML = '<div class="empty">No detections recorded yet.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    [...data].reverse().forEach(d => {
+      const chipClass = d.snr_db >= 15 ? 'chip-hi' : d.snr_db >= 8 ? 'chip-md' : 'chip-lo';
+      const el = document.createElement('div');
+      el.className = 'det-item';
+      el.innerHTML = `
+        <div>
+          <div class="det-freq">${(d.freq_hz / 1e6).toFixed(3)} MHz</div>
+          <div class="det-time">${new Date(d.ts * 1000).toLocaleString()}</div>
+        </div>
+        <span class="snr-chip ${chipClass}">${d.snr_db.toFixed(1)} dB</span>`;
+      list.appendChild(el);
+    });
+    // Store for CSV export
+    list._rawData = data;
+  } catch {}
+}
+
+document.getElementById('refreshHistoryBtn').addEventListener('click', loadHistory);
+
+document.getElementById('downloadHistoryBtn').addEventListener('click', () => {
+  const list = document.getElementById('historyList');
+  const data = list._rawData;
+  if (!data || !data.length) { setStatus('No history to export'); return; }
+  const rows = ['timestamp_iso,freq_mhz,snr_db', ...data.map(d =>
+    `${new Date(d.ts * 1000).toISOString()},${(d.freq_hz / 1e6).toFixed(4)},${d.snr_db}`
+  )];
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `spectre_detections_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+});
+
+document.getElementById('autoRefreshLogs').addEventListener('change', e => {
+  clearInterval(logsTimer); logsTimer = null;
+  if (e.target.checked && pollTimer) logsTimer = setInterval(loadLogs, 5000);
+});
+
+// ── Live status ────────────────────────────────────────────────────────────
+function updateLiveStatus(s) {
+  const snr = typeof s.snr_db === 'number' ? s.snr_db : null;
+  if (snr !== null) {
+    const style = snrStyle(snr);
+    const el = document.getElementById('snrVal');
+    el.textContent = snr.toFixed(1);
+    el.style.color = style.color;
+    el.style.textShadow = style.glow;
+    // Card border + outer glow
+    const card = document.getElementById('signalCard');
+    card.style.boxShadow = style.card;
+    card.style.borderColor = style.card ? style.color.replace(')', ',0.28)').replace('rgb', 'rgba') : '';
+    // Bar
+    document.getElementById('snrFill').style.width = `${Math.min(100, (snr / 30) * 100)}%`;
+    // Sparkline colour tracks signal level
+    document.getElementById('sparklineLine').setAttribute('stroke', style.spark);
+    document.getElementById('sparkGradTop').setAttribute('stop-color', style.fill);
+    // Freq badge colour
+    const badge = document.getElementById('freqBadge');
+    badge.style.color = style.color;
+    badge.style.borderColor = style.color.replace(')', ',0.3)').replace('rgb', 'rgba');
+    // Push to history
+    snrHistory.push(snr);
+    if (snrHistory.length > SNR_MAX_HISTORY) snrHistory.shift();
+    renderSparkline();
+  }
+  if (typeof s.peak_snr_db === 'number') {
+    document.getElementById('snrPeak').textContent = `Peak ${s.peak_snr_db.toFixed(1)} dB`;
+  }
+  if (s.freq_hz) {
+    document.getElementById('freqVal').textContent = `${(s.freq_hz / 1e6).toFixed(3)} MHz`;
+  } else if (typeof s.uptime_s === 'number' && s.uptime_s > 0) {
+    document.getElementById('freqVal').textContent = 'Scanning…';
+  }
+  if (typeof s.uptime_s === 'number') {
+    document.getElementById('dUptime').textContent = fmtUptime(s.uptime_s);
+  }
+  if (typeof s.detection_count === 'number') {
+    document.getElementById('dDetections').textContent = s.detection_count;
+  }
+  if (typeof s.cpu_temp_c === 'number') {
+    const tempEl = document.getElementById('dTemp');
+    const color = s.cpu_temp_c >= 75 ? 'var(--red)' : s.cpu_temp_c >= 60 ? 'var(--yellow)' : 'var(--text)';
+    tempEl.textContent = `${s.cpu_temp_c}°C`;
+    tempEl.style.color = color;
+  }
+  if (Array.isArray(s.recent_detections)) renderDetections(s.recent_detections);
+}
+
+function renderSparkline() {
+  const line = document.getElementById('sparklineLine');
+  const fill = document.getElementById('sparklineFill');
+  if (!line || !snrHistory.length) return;
+  const W = 300, H = 68, PAD = 3;
+  const pts = snrHistory.map((v, i) => {
+    const x = PAD + (i / Math.max(1, SNR_MAX_HISTORY - 1)) * (W - PAD * 2);
+    const y = H - PAD - Math.max(0, Math.min(1, v / SNR_CHART_MAX)) * (H - PAD * 2);
+    return [x, y];
+  });
+  line.setAttribute('points', pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' '));
+  // Filled area under the line
+  if (pts.length > 1 && fill) {
+    const base = H;
+    const d = `M ${pts[0][0].toFixed(1)},${base} ` +
+              pts.map(([x, y]) => `L ${x.toFixed(1)},${y.toFixed(1)}`).join(' ') +
+              ` L ${pts[pts.length - 1][0].toFixed(1)},${base} Z`;
+    fill.setAttribute('d', d);
+  }
+}
+
+function renderDetections(dets) {
+  const list = document.getElementById('detList');
+  const empty = document.getElementById('detEmpty');
+  if (!dets.length) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  dets.forEach(d => {
+    const key = d.ts;
+    if (renderedDetectionKeys.has(key)) return;
+    renderedDetectionKeys.add(key);
+    if (renderedDetectionKeys.size > 200) {
+      // Keep the set from growing unbounded — drop the oldest entry.
+      renderedDetectionKeys.delete(renderedDetectionKeys.values().next().value);
+    }
+    const chipClass = d.snr_db >= 15 ? 'chip-hi' : d.snr_db >= 8 ? 'chip-md' : 'chip-lo';
+    const el = document.createElement('div');
+    el.className = 'det-item';
+    el.innerHTML = `
+      <div>
+        <div class="det-freq">${(d.freq_hz / 1e6).toFixed(3)} MHz</div>
+        <div class="det-time">${relTime(d.ts)}</div>
+      </div>
+      <span class="snr-chip ${chipClass}">${d.snr_db.toFixed(1)} dB</span>`;
+    list.insertBefore(el, list.firstChild);
+  });
+}
+
+// ── Device info ────────────────────────────────────────────────────────────
+async function loadDeviceInfo() {
+  if (!chars.info) return;
+  const d = await readJson(chars.info);
+  if (d.__raw) return;
+  const name = d.device_name || d.hostname || 'Spectre 380';
+  document.getElementById('hdrName').textContent = name;
+  document.getElementById('hdrSub').textContent = d.hostname || '';
+  document.getElementById('dName').textContent = name;
+  document.getElementById('dSerial').textContent = d.pi_serial || '—';
+  document.getElementById('dVersion').textContent = d.software_version || '—';
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+async function loadSettings() {
+  if (!chars.settings) return;
+  const d = await readJson(chars.settings);
+  if (d.__raw) return;
+  if (typeof d.speaker_volume === 'number') {
+    document.getElementById('volume').value = d.speaker_volume;
+    document.getElementById('volumeVal').textContent = `${d.speaker_volume}%`;
+  }
+  if (d.alert_sound) document.getElementById('sound').value = d.alert_sound;
+  if (d.led_theme) document.getElementById('ledTheme').value = d.led_theme;
+  if (typeof d.led_brightness === 'number') {
+    document.getElementById('ledBrightness').value = d.led_brightness;
+    document.getElementById('brightnessVal').textContent = `${d.led_brightness}%`;
+  }
+}
+
+document.getElementById('saveThemeBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  try {
+    await writeJson(chars.settings, {
+      led_theme: document.getElementById('ledTheme').value,
+      led_brightness: parseInt(document.getElementById('ledBrightness').value, 10),
+    });
+    setStatus('Theme saved'); setTimeout(() => setStatus('Connected'), 1500);
+  } catch { promptPin(() => document.getElementById('saveThemeBtn').click()); }
+});
+
+document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  try {
+    await writeJson(chars.settings, {
+      speaker_volume: parseInt(document.getElementById('volume').value, 10),
+      alert_sound: document.getElementById('sound').value,
+    });
+    setStatus('Settings saved'); setTimeout(() => setStatus('Connected'), 1500);
+  } catch { promptPin(() => document.getElementById('saveSettingsBtn').click()); }
+});
+
+// ── LED controls ───────────────────────────────────────────────────────────
+const LED_DEFAULTS = ['#0ea5e9','#22d3ee','#14b8a6','#10b981','#84cc16','#facc15','#fb923c','#ef4444'];
+(function buildStrip() {
+  const strip = document.getElementById('ledStrip');
+  LED_DEFAULTS.forEach((c, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'led-cell';
+    cell.innerHTML = `<input type="color" value="${c}" class="led-col" /><span>${i + 1}</span>`;
+    strip.appendChild(cell);
+  });
+})();
+
+const collectColors = () => Array.from(document.querySelectorAll('.led-col')).map(el => el.value);
+
+async function sendLedTest(payload) {
+  if (!chars.settings) return;
+  try {
+    await writeJson(chars.settings, { led_test: payload });
+    setStatus('LED test sent'); setTimeout(() => setStatus('Connected'), 1500);
+  } catch {
+    if (bleDevice && bleDevice.gatt.connected) {
+      promptPin(() => sendLedTest(payload));
+    }
+  }
+}
+
+document.querySelectorAll('[data-pattern]').forEach(btn =>
+  btn.addEventListener('click', () => sendLedTest(btn.dataset.pattern))
+);
+
+bindRange('ledBrightness', 'brightnessVal');
+bindRange('manualBrightness', 'manualBrightnessVal');
+bindRange('volume', 'volumeVal');
+bindRange('signalLevel', 'signalLevelVal');
+
+document.getElementById('signalTestBtn').addEventListener('click', () => {
+  const level = Math.max(0.05, parseInt(document.getElementById('signalLevel').value, 10) / 100);
+  sendLedTest({ pattern: 'signal', level: parseFloat(level.toFixed(2)) });
+});
+
+document.getElementById('manualPreviewBtn').addEventListener('click', () =>
+  sendLedTest({
+    pattern: 'manual',
+    colors: collectColors(),
+    duration: parseFloat(document.getElementById('manualDuration').value) || 3,
+    brightness: parseInt(document.getElementById('manualBrightness').value, 10),
+  })
+);
+
+document.getElementById('manualApplyBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  try {
+    await writeJson(chars.settings, { led_manual: { colors: collectColors(), brightness: parseInt(document.getElementById('manualBrightness').value, 10) } });
+    setStatus('Pattern locked in'); setTimeout(() => setStatus('Connected'), 1500);
+  } catch {
+    if (bleDevice && bleDevice.gatt.connected) promptPin(() => document.getElementById('manualApplyBtn').click());
+  }
+});
+
+document.getElementById('manualReleaseBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  try {
+    await writeJson(chars.settings, { led_manual_clear: true });
+    setStatus('Manual mode released'); setTimeout(() => setStatus('Connected'), 1500);
+  } catch {
+    if (bleDevice && bleDevice.gatt.connected) promptPin(() => document.getElementById('manualReleaseBtn').click());
+  }
+});
+
+// ── Logs ───────────────────────────────────────────────────────────────────
+// ── Logs ───────────────────────────────────────────────────────────────────
+let _logData = [];       // raw entries, newest-last
+let _logFilter = 'ALL';  // current level filter
+
+function _relativeTime(ts) {
+  const diff = Math.floor(Date.now() / 1000 - ts);
+  if (diff <  60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return new Date(ts * 1000).toLocaleDateString();
+}
+
+function _absTime(ts) {
+  return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function _renderLogs() {
+  const box = document.getElementById('logBox');
+  const WARN_LEVELS = new Set(['WARNING', 'ERROR', 'CRITICAL']);
+  const ERR_LEVELS  = new Set(['ERROR', 'CRITICAL']);
+
+  let entries = _logData;
+  if (_logFilter === 'WARNING') entries = entries.filter(r => WARN_LEVELS.has(r.level));
+  if (_logFilter === 'ERROR')   entries = entries.filter(r => ERR_LEVELS.has(r.level));
+
+  const count = document.getElementById('logCount');
+  count.textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
+
+  if (!entries.length) {
+    box.innerHTML = `<div class="log-empty">${_logData.length ? 'No entries match current filter.' : 'No logs yet.'}</div>`;
+    return;
+  }
+
+  box.innerHTML = '';
+  // Show newest at top
+  [...entries].reverse().forEach(row => {
+    const div = document.createElement('div');
+    const lvl = row.level || 'INFO';
+    div.className = `log-line lvl-${lvl}`;
+
+    const ts   = document.createElement('span');
+    ts.className = 'log-ts';
+    ts.textContent = row.ts ? _relativeTime(row.ts) : '';
+    if (row.ts) ts.title = _absTime(row.ts);
+
+    const badge = document.createElement('span');
+    badge.className = 'log-lvl';
+    badge.textContent = lvl.length > 4 ? lvl.slice(0, 4) : lvl;
+
+    const name = document.createElement('span');
+    name.className = 'log-name';
+    name.textContent = row.name || '';
+
+    const msg = document.createElement('span');
+    msg.className = 'log-msg';
+    msg.textContent = row.msg || row.message || '';
+
+    div.append(ts, badge, name, msg);
+    box.appendChild(div);
+  });
+}
+
+async function loadLogs() {
+  if (!chars.logs) return;
+  try {
+    const raw = await readJson(chars.logs);
+    if (raw.__raw) {
+      // Pre-structured format unavailable — show plain text
+      document.getElementById('logBox').textContent = raw.__raw;
+      return;
+    }
+    if (!Array.isArray(raw)) return;
+    _logData = raw;
+    _renderLogs();
+  } catch {}
+}
+
+// Level filter buttons
+document.querySelectorAll('.log-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.log-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _logFilter = btn.dataset.lvl;
+    _renderLogs();
+  });
+});
+
+// Copy logs to clipboard
+document.getElementById('copyLogsBtn').addEventListener('click', () => {
+  if (!_logData.length) return;
+  const text = [..._logData].reverse().map(r =>
+    `${r.ts ? _absTime(r.ts) : ''} [${r.level || ''}] ${r.name || ''} ${r.msg || r.message || ''}`
+  ).join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyLogsBtn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+});
+
+document.getElementById('refreshLogsBtn').addEventListener('click', loadLogs);
+
+// ── Diagnostics ────────────────────────────────────────────────────────────
+async function loadDiagnostics() {
+  if (!chars.diagnostics) return;
+  try {
+    const d = await readJson(chars.diagnostics);
+    updateSweetSpot(d.sweet_spot || {});
+    updateProbeStatus(d.live_probe || {});
+  } catch {}
+}
+
+function updateSweetSpot(data) {
+  document.getElementById('sweetStatus').textContent = (data.status || 'idle').replace(/_/g,' ');
+  if (Array.isArray(data.measurements)) {
+    const lines = data.measurements.map(m =>
+      `${Number(m.delay).toFixed(3)}s  unlocks:${m.unlocks}  time:${Number(m.duration).toFixed(2)}s`
+    ).join('\n');
+    const sel = data.selected_delay != null ? `\nSelected: ${Number(data.selected_delay).toFixed(3)}s` : '';
+    document.getElementById('sweetResults').textContent = lines + sel;
+  }
+}
+
+function updateProbeStatus(data) {
+  const st = data.status || 'idle';
+  document.getElementById('probeStatus').textContent = st.replace(/_/g,' ');
+  if (st === 'stream' && typeof data.power_db === 'number') {
+    setProbeReading(data.power_db);
+    prependProbe(`${new Date().toLocaleTimeString()}  ${data.power_db.toFixed(1)} dB SNR`);
+  } else if (st === 'complete') {
+    prependProbe(`Complete — avg:${data.avg_db?.toFixed(1)}  max:${data.max_db?.toFixed(1)}  min:${data.min_db?.toFixed(1)} dB SNR`);
+    clearInterval(probeInterval); probeInterval = null;
+  }
+}
+
+function setProbeReading(snr) {
+  document.getElementById('probeReading').textContent = `${snr.toFixed(1)} dB SNR`;
+  document.getElementById('probeMeter').style.width = `${Math.min(100, Math.max(0, (snr / 30) * 100))}%`;
+}
+
+function prependProbe(line) {
+  const pre = document.getElementById('probeHistory');
+  const lines = pre.textContent === '(no samples yet)' ? [] : pre.textContent.split('\n');
+  lines.unshift(line);
+  pre.textContent = lines.slice(0, 15).join('\n');
+}
+
+document.getElementById('diagRefreshBtn').addEventListener('click', loadDiagnostics);
+
+document.getElementById('sweetRunBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  const plan = document.getElementById('sweetPlan').value
+    .split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v) && v > 0);
+  if (!plan.length) { setStatus('Enter at least one delay value'); return; }
+  document.getElementById('sweetStatus').textContent = 'Running…';
+  try {
+    await writeJson(chars.settings, { diagnostics: { type: 'sweet_spot', delays: plan } });
+    setStatus('Calibration running');
+  } catch (err) { setStatus(`Failed: ${err.message}`); }
+});
+
+document.getElementById('probeRunBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  const freq = parseFloat(document.getElementById('probeFreq').value);
+  const dur = Math.max(1, parseFloat(document.getElementById('probeDur').value) || 4);
+  if (isNaN(freq)) { setStatus('Enter a valid frequency'); return; }
+  document.getElementById('probeStatus').textContent = 'Arming…';
+  try {
+    await writeJson(chars.settings, { diagnostics: { type: 'live_probe', frequency: freq * 1e6, duration: dur } });
+    setStatus(`Probing ${freq.toFixed(3)} MHz`);
+    clearInterval(probeInterval);
+    probeInterval = setInterval(loadDiagnostics, 1200);
+  } catch (err) { setStatus(`Probe failed: ${err.message}`); }
+});
+
+// ── OTA + revoke handlers ──────────────────────────────────────────────────
+document.getElementById('otaBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  const btn = document.getElementById('otaBtn');
+  btn.disabled = true; btn.textContent = 'Triggering…';
+  try {
+    await writeJson(chars.settings, { trigger_update: true });
+    setStatus('Update check triggered — watch device LEDs');
+  } catch {
+    if (bleDevice && bleDevice.gatt.connected) promptPin(() => document.getElementById('otaBtn').click());
+  } finally {
+    btn.disabled = false; btn.textContent = 'Check for Update';
+  }
+});
+
+document.getElementById('revokeAllBtn').addEventListener('click', async () => {
+  if (!chars.auth) return;
+  if (!confirm('Revoke all trusted devices? You will need to re-enter the PIN next time.')) return;
+  try {
+    await chars.auth.writeValue(new TextEncoder().encode('REVOKE_ALL'));
+    localStorage.removeItem('spectre_trust_token');
+    setStatus('All trusted devices revoked');
+  } catch {
+    if (bleDevice && bleDevice.gatt.connected) promptPin(() => document.getElementById('revokeAllBtn').click());
+  }
+});
+
+// ── Tab navigation ─────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
+    if (tab.dataset.tab === 'logs') { _renderLogs(); loadLogs(); }
+    if (tab.dataset.tab === 'history') loadHistory();
+  });
+});
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function snrStyle(snr) {
+  if (snr >= 12) return {
+    color: '#f87171',
+    glow:  '0 0 18px rgba(248,113,113,0.55), 0 0 55px rgba(248,113,113,0.22)',
+    card:  '0 0 0 1px rgba(248,113,113,0.35), 0 8px 40px rgba(248,113,113,0.18)',
+    spark: 'rgba(248,113,113,0.9)',
+    fill:  'rgba(248,113,113,0.28)',
+  };
+  if (snr >= 6) return {
+    color: '#fbbf24',
+    glow:  '0 0 16px rgba(251,191,36,0.5), 0 0 48px rgba(251,191,36,0.18)',
+    card:  '0 0 0 1px rgba(251,191,36,0.28), 0 8px 40px rgba(251,191,36,0.12)',
+    spark: 'rgba(251,191,36,0.9)',
+    fill:  'rgba(251,191,36,0.22)',
+  };
+  if (snr >= 3) return {
+    color: '#4ade80',
+    glow:  '0 0 14px rgba(74,222,128,0.45), 0 0 42px rgba(74,222,128,0.14)',
+    card:  '0 0 0 1px rgba(74,222,128,0.22), 0 8px 40px rgba(74,222,128,0.09)',
+    spark: 'rgba(74,222,128,0.9)',
+    fill:  'rgba(74,222,128,0.2)',
+  };
+  return {
+    color: '#38bdf8',
+    glow:  '0 0 10px rgba(56,189,248,0.25)',
+    card:  '',
+    spark: 'rgba(56,189,248,0.8)',
+    fill:  'rgba(56,189,248,0.18)',
+  };
+}
+
+function fmtUptime(s) {
+  if (s < 60) return `${Math.round(s)}s`;
+  if (s < 3600) return `${Math.floor(s/60)}m ${Math.round(s%60)}s`;
+  return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`;
+}
+
+function relTime(ts) {
+  const d = Math.floor(Date.now()/1000 - ts);
+  if (d < 5) return 'just now';
+  if (d < 60) return `${d}s ago`;
+  if (d < 3600) return `${Math.floor(d/60)}m ago`;
+  return `${Math.floor(d/3600)}h ago`;
+}
+
+function bindRange(inputId, valId) {
+  const el = document.getElementById(inputId);
+  const vl = document.getElementById(valId);
+  el.addEventListener('input', () => { vl.textContent = `${el.value}%`; });
+}
+</script>
+</body>
+</html>
