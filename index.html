@@ -478,11 +478,17 @@
   <div class="pin-card">
     <div style="font-size:2rem;margin-bottom:0.4rem;">🔒</div>
     <div style="font-size:1.1rem;font-weight:800;margin-bottom:0.5rem;">Enter Device PIN</div>
-    <p style="color:var(--muted);font-size:0.82rem;line-height:1.65;margin-bottom:1.1rem;">
-      Look at the LED strip on your device.<br>
-      Each digit is shown as <strong style="color:#f1f5f9;">lit LEDs from the left</strong> — count them.<br>
-      Digits cycle one at a time, 1 through 8.
+    <p style="color:var(--muted);font-size:0.82rem;line-height:1.65;margin-bottom:0.75rem;">
+      Watch the LED strip — 4 digits cycle one at a time.<br>
+      <strong style="color:#f1f5f9;">Count the lit LEDs</strong> for each digit's value.<br>
+      Each position has its own colour so you always know where you are:
     </p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.4rem;margin-bottom:1rem;text-align:center;font-size:0.74rem;font-weight:700;">
+      <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#dcdcdc;margin-bottom:3px;box-shadow:0 0 6px #dcdcdc;"></span><br><span style="color:#dcdcdc;">White</span><br><span style="color:var(--muted);">Digit 1</span></div>
+      <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#00c8dc;margin-bottom:3px;box-shadow:0 0 6px #00c8dc;"></span><br><span style="color:#00c8dc;">Cyan</span><br><span style="color:var(--muted);">Digit 2</span></div>
+      <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#00d23c;margin-bottom:3px;box-shadow:0 0 6px #00d23c;"></span><br><span style="color:#00d23c;">Green</span><br><span style="color:var(--muted);">Digit 3</span></div>
+      <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#dcb400;margin-bottom:3px;box-shadow:0 0 6px #dcb400;"></span><br><span style="color:#dcb400;">Yellow</span><br><span style="color:var(--muted);">Digit 4</span></div>
+    </div>
     <div style="display:flex;justify-content:center;gap:0.55rem;margin-bottom:0.8rem;">
       <input type="text" class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off" />
       <input type="text" class="pin-digit" maxlength="1" inputmode="numeric" autocomplete="off" />
@@ -740,7 +746,7 @@ async function submitPin() {
       document.getElementById('trust-banner').classList.add('show');
     }
   } catch {
-    document.getElementById('pin-error').textContent = 'Incorrect PIN — count the lit LEDs on your device.';
+    document.getElementById('pin-error').textContent = 'Incorrect PIN — count the lit LEDs for each colour.';
     document.querySelectorAll('.pin-digit').forEach(i => { i.classList.add('shake'); setTimeout(() => i.classList.remove('shake'), 400); });
     document.querySelectorAll('.pin-digit').forEach(i => i.value = '');
     setTimeout(() => { const f = document.querySelector('.pin-digit'); if (f) f.focus(); }, 80);
