@@ -982,7 +982,12 @@ async function downloadExportChunked(type, options, filename, mime) {
 }
 
 async function fetchExportMeta(type, options) {
-  const payload = { type: `${type}_meta`, ...options };
+  const metaType = type === 'scan_csv'
+    ? 'scan_meta'
+    : type === 'logs'
+      ? 'logs_meta'
+      : `${type}_meta`;
+  const payload = { type: metaType, ...options };
   await writeJson(chars.exports, payload);
   const raw = await chars.exports.readValue();
   const text = new TextDecoder().decode(raw).replace(/\0+$/, '');
