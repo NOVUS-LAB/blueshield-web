@@ -102,12 +102,71 @@
     .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #22c55e 0%, #f59e0b 55%, #ef4444 100%); width: 0%; transition: width 0.45s ease; }
     .snr-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.6rem; opacity: 0.7; }
 
+    /* ── Session Peak row ── */
+    .peak-row {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.55rem 0.75rem; margin: 0.55rem 0 0.45rem;
+      border-radius: 10px;
+      background: rgba(56,189,248,0.04);
+      border: 1px solid rgba(56,189,248,0.1);
+      transition: border-color 0.5s, background 0.5s;
+    }
+    .peak-icon { font-size: 0.78rem; color: var(--muted); flex-shrink: 0; transition: color 0.5s; }
+    .peak-val {
+      font-size: 2.1rem; font-weight: 900; font-variant-numeric: tabular-nums;
+      line-height: 1; letter-spacing: -0.02em;
+      color: var(--muted);
+      transition: color 0.5s ease, text-shadow 0.5s ease;
+    }
+    .peak-unit { font-size: 0.82rem; font-weight: 700; color: var(--muted); align-self: flex-end; padding-bottom: 0.18rem; opacity: 0.75; }
+    .peak-labels { display: flex; flex-direction: column; flex: 1; gap: 0.05rem; padding-bottom: 0.05rem; }
+    .peak-lbl { font-size: 0.58rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); opacity: 0.55; }
+    .peak-age  { font-size: 0.68rem; font-weight: 500; color: var(--muted); opacity: 0.65; min-height: 0.9rem; }
+    .peak-new {
+      font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0.18rem 0.5rem; border-radius: 999px;
+      background: rgba(248,113,113,0.12); color: #f87171; border: 1px solid rgba(248,113,113,0.3);
+      opacity: 0; flex-shrink: 0;
+    }
+    .peak-new.flash { animation: peak-flash 2.4s ease-out forwards; }
+    @keyframes peak-flash {
+      0%   { opacity: 1; transform: scale(1.08); }
+      12%  { opacity: 1; transform: scale(1); }
+      75%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .peak-reset {
+      font-size: 0.65rem; color: var(--muted); opacity: 0.35; cursor: pointer;
+      border: none; background: none; padding: 0.2rem 0.35rem; border-radius: 6px;
+      transition: opacity 0.2s; flex-shrink: 0; line-height: 1;
+    }
+    .peak-reset:hover { opacity: 0.65; }
+
     /* ── Sparkline ── */
     .sparkline-wrap { margin: 0.4rem 0 0.65rem; border-radius: 8px; overflow: hidden; }
     .sparkline-wrap svg { width: 100%; height: 68px; display: block; }
 
     /* ── Freq badge ── */
     .freq-badge { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.38rem 0.95rem; border-radius: 999px; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); font-size: 0.9rem; font-weight: 700; color: var(--accent); transition: border-color 0.5s, color 0.5s; letter-spacing: 0.01em; }
+
+    /* ── Confirmation streak badge ── */
+    .confirm-badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.3rem 0.65rem; border-radius: 999px;
+      background: rgba(30,41,59,0.8); border: 1px solid rgba(100,116,139,0.25);
+      font-size: 0.72rem; font-weight: 700; color: var(--muted);
+      transition: border-color 0.3s, color 0.3s;
+      white-space: nowrap;
+    }
+    .confirm-badge.building { border-color: rgba(251,191,36,0.4); color: #fbbf24; }
+    .confirm-badge.confirmed { border-color: rgba(248,113,113,0.45); color: #f87171; }
+    .confirm-pip {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(100,116,139,0.35); border: 1px solid rgba(100,116,139,0.25);
+      display: inline-block; transition: background 0.2s, border-color 0.2s;
+    }
+    .confirm-pip.lit { background: #fbbf24; border-color: rgba(251,191,36,0.6); }
+    .confirm-pip.full { background: #f87171; border-color: rgba(248,113,113,0.6); }
 
     /* ── Scan dot with pulse ring ── */
     .scan-dot { position: relative; display: inline-block; width: 8px; height: 8px; flex-shrink: 0; }
@@ -279,9 +338,15 @@
             <line x1="0" y1="45" x2="300" y2="45" stroke="rgba(239,68,68,0.3)" stroke-width="1" stroke-dasharray="4,4"/>
           </svg>
         </div>
-        <div class="freq-badge" id="freqBadge">
-          <span class="scan-dot"></span>
-          <span id="freqVal">Not scanning</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;gap:0.5rem;">
+          <div class="freq-badge" id="freqBadge" style="flex:1;">
+            <span class="scan-dot"></span>
+            <span id="freqVal">Not scanning</span>
+          </div>
+          <div class="confirm-badge" id="confirmBadge" title="Confirmation streak (scans above threshold)">
+            <span id="confirmPips"></span>
+            <span id="confirmLabel">0/3</span>
+          </div>
         </div>
       </div>
 
@@ -346,6 +411,41 @@
       <div class="btn-row" style="margin-top:0.75rem;">
         <button class="btn btn-primary" id="applyDwellBtn">Apply</button>
         <p style="color:var(--muted);font-size:0.74rem;margin:auto 0;line-height:1.4;">Shorter = faster sweeps.<br>Longer = more sensitive per channel.</p>
+      </div>
+    </div>
+
+    <!-- Confirmation count -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">Confirmation Count</div>
+      <div class="field">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;">
+          <span>Scans above threshold before alert</span>
+          <span class="stat-val" id="confirmDisplay">3</span>
+        </div>
+        <input type="range" id="confirmSlider" min="1" max="10" step="1" value="3" />
+      </div>
+      <div class="btn-row" style="margin-top:0.75rem;">
+        <button class="btn btn-primary" id="applyConfirmBtn">Apply</button>
+        <p style="color:var(--muted);font-size:0.74rem;margin:auto 0;line-height:1.4;">
+          <strong style="color:var(--text);">Fixes constant false alerts.</strong><br>
+          Higher = needs more sustained signal to confirm. Resets on each hop so broadband noise won't accumulate.
+        </p>
+      </div>
+    </div>
+
+    <!-- Alert cooldown -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">Alert Cooldown</div>
+      <div class="field">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;">
+          <span>Seconds between alerts</span>
+          <span class="stat-val" id="cooldownDisplay">15 s</span>
+        </div>
+        <input type="range" id="cooldownSlider" min="0" max="120" step="5" value="15" />
+      </div>
+      <div class="btn-row" style="margin-top:0.75rem;">
+        <button class="btn btn-primary" id="applyCooldownBtn">Apply</button>
+        <p style="color:var(--muted);font-size:0.74rem;margin:auto 0;line-height:1.4;">Minimum time between consecutive alert fires on any one channel. Scan log still records everything.</p>
       </div>
     </div>
 
@@ -1141,6 +1241,25 @@ function updateLiveStatus(s) {
   if (typeof s.peak_snr_db === 'number') {
     document.getElementById('snrPeak').textContent = `Peak ${s.peak_snr_db.toFixed(1)} dB`;
   }
+  // Confirmation streak pips
+  if (typeof s.confirm_streak === 'number' || typeof s.confirm_count === 'number') {
+    const streak = typeof s.confirm_streak === 'number' ? s.confirm_streak : 0;
+    const total  = typeof s.confirm_count  === 'number' ? s.confirm_count  : 3;
+    const badge  = document.getElementById('confirmBadge');
+    const pips   = document.getElementById('confirmPips');
+    const lbl    = document.getElementById('confirmLabel');
+    if (badge && pips && lbl) {
+      lbl.textContent = `${streak}/${total}`;
+      const full = streak >= total;
+      badge.className = 'confirm-badge' + (full ? ' confirmed' : streak > 0 ? ' building' : '');
+      pips.innerHTML = Array.from({length: total}, (_, i) =>
+        `<span class="confirm-pip${i < streak ? (full ? ' full' : ' lit') : ''}"></span>`
+      ).join('');
+    }
+    // Also sync confirm slider if it differs
+    if (typeof s.confirm_count === 'number') syncFieldSliders({ confirm_count: s.confirm_count });
+    if (typeof s.alert_cooldown_s === 'number') syncFieldSliders({ alert_cooldown_s: s.alert_cooldown_s });
+  }
   if (s.freq_hz) {
     document.getElementById('freqVal').textContent = `${(s.freq_hz / 1e6).toFixed(3)} MHz`;
   } else if (typeof s.uptime_s === 'number' && s.uptime_s > 0) {
@@ -1557,6 +1676,16 @@ const dwellSlider = document.getElementById('dwellSlider');
 const dwellDisplay = document.getElementById('dwellDisplay');
 dwellSlider.addEventListener('input', () => { dwellDisplay.textContent = `${parseFloat(dwellSlider.value).toFixed(1)} s`; });
 
+// Confirm count slider
+const confirmSlider = document.getElementById('confirmSlider');
+const confirmDisplay = document.getElementById('confirmDisplay');
+confirmSlider.addEventListener('input', () => { confirmDisplay.textContent = parseInt(confirmSlider.value); });
+
+// Alert cooldown slider
+const cooldownSlider = document.getElementById('cooldownSlider');
+const cooldownDisplay = document.getElementById('cooldownDisplay');
+cooldownSlider.addEventListener('input', () => { cooldownDisplay.textContent = `${parseInt(cooldownSlider.value)} s`; });
+
 // Sync sliders when settings load
 function syncFieldSliders(settings) {
   if (typeof settings.threshold_db === 'number') {
@@ -1566,6 +1695,14 @@ function syncFieldSliders(settings) {
   if (typeof settings.dwell_seconds === 'number') {
     dwellSlider.value = settings.dwell_seconds;
     dwellDisplay.textContent = `${settings.dwell_seconds.toFixed(1)} s`;
+  }
+  if (typeof settings.confirm_count === 'number') {
+    confirmSlider.value = settings.confirm_count;
+    confirmDisplay.textContent = settings.confirm_count;
+  }
+  if (typeof settings.alert_cooldown_s === 'number') {
+    cooldownSlider.value = settings.alert_cooldown_s;
+    cooldownDisplay.textContent = `${settings.alert_cooldown_s} s`;
   }
 }
 
@@ -1585,6 +1722,24 @@ document.getElementById('applyDwellBtn').addEventListener('click', async () => {
     await writeJson(chars.settings, { dwell_seconds: val });
     setStatus(`Dwell set to ${val.toFixed(1)} s`);
   } catch { setStatus('Failed to apply dwell'); }
+});
+
+document.getElementById('applyConfirmBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  const val = parseInt(confirmSlider.value, 10);
+  try {
+    await writeJson(chars.settings, { confirm_count: val });
+    setStatus(`Confirmation count set to ${val} scan${val > 1 ? 's' : ''}`);
+  } catch { setStatus('Failed to apply confirm count'); }
+});
+
+document.getElementById('applyCooldownBtn').addEventListener('click', async () => {
+  if (!chars.settings) return;
+  const val = parseInt(cooldownSlider.value, 10);
+  try {
+    await writeJson(chars.settings, { alert_cooldown_s: val });
+    setStatus(`Alert cooldown set to ${val} s`);
+  } catch { setStatus('Failed to apply cooldown'); }
 });
 
 // Frequency lock
