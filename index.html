@@ -620,6 +620,7 @@
       <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;">
         <span style="font-size:0.72rem;color:var(--muted);">Summary scan logs</span>
         <select id="summaryCsvSelect" style="min-width:220px;"></select>
+        <button class="btn btn-ghost" id="refreshSummaryListBtn" style="padding:0.3rem 0.6rem;font-size:0.72rem;">Refresh List</button>
         <button class="btn btn-ghost" id="downloadSummaryCsvBtn" style="padding:0.35rem 0.75rem;font-size:0.78rem;">Summary CSV</button>
       </div>
       <div id="historyCount" style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem;"></div>
@@ -1066,65 +1067,79 @@ document.getElementById('downloadSummaryCsvBtn').addEventListener('click', () =>
 });
 
 document.getElementById('refreshScanListBtn').addEventListener('click', loadScanList);
+document.getElementById('refreshSummaryListBtn').addEventListener('click', loadSummaryList);
 
 async function downloadExportChunked(type, options, filename, mime) {
-  if (!chars.exports) { setStatus('Export service unavailable'); return; }
+  if (!chars.exports) { setStatus('Export service unavailable — not connected?'); return; }
   try {
+    setStatus(`Preparing ${filename || type}…`);
     const meta = await fetchExportMeta(type, options);
     if (!meta || meta.error) {
-      setStatus(meta?.error || 'Export metadata unavailable');
+      setStatus(`Export error: ${meta?.error || 'metadata unavailable'}`);
       return;
     }
     const size = Number(meta.size || 0);
     if (!size) {
-      setStatus('Export file empty or missing');
+      setStatus(`Export failed — file empty or not found on device`);
       return;
     }
+    const sizeKb = Math.ceil(size / 1024);
     const chunks = [];
     const chunkSize = 480;
     let offset = 0;
+    let lastPct = -1;
+    // First write with offset=0 triggers the file read + cache on the device
     while (offset < size) {
-      await writeJson(chars.exports, {
-        type,
-        offset,
-        length: chunkSize,
-        ...options
-      });
+      await writeJson(chars.exports, { type, offset, length: chunkSize, ...options });
       const raw = await chars.exports.readValue();
       const bytes = new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
       if (!bytes.length) break;
+      // Check for error sentinel from device
+      if (offset === 0) {
+        const head = new TextDecoder().decode(bytes.slice(0, 6));
+        if (head.startsWith('ERROR:')) {
+          const msg = new TextDecoder().decode(bytes);
+          setStatus(`Export error: ${msg}`);
+          return;
+        }
+      }
       chunks.push(bytes);
       offset += bytes.length;
+      const pct = Math.round((offset / size) * 100);
+      if (pct !== lastPct) {
+        setStatus(`Downloading ${filename || type}… ${pct}% (${Math.ceil(offset/1024)}/${sizeKb} KB)`);
+        lastPct = pct;
+      }
     }
+    if (!chunks.length) { setStatus('Export failed — no data received'); return; }
     const blob = new Blob(chunks, { type: mime || 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = filename || meta.name || `spectre_export_${Date.now()}`;
     a.click();
+    setStatus(`Downloaded ${filename || meta.name || 'export'} (${sizeKb} KB)`);
   } catch (err) {
     setStatus(`Export failed: ${err.message}`);
   }
 }
 
 async function fetchExportMeta(type, options) {
-  const metaType = type === 'scan_csv'
-    ? 'scan_meta'
-    : type === 'summary_csv'
-      ? 'summary_meta'
-    : type === 'logs'
-      ? 'logs_meta'
-      : `${type}_meta`;
-  const payload = { type: metaType, ...options };
+  const metaMap = {
+    scan_csv: 'scan_meta',
+    summary_csv: 'summary_meta',
+    logs: 'logs_meta',
+  };
+  const metaType = metaMap[type] || `${type}_meta`;
+  // Pass max_bytes so the reported size matches what _read_full_file will return
+  const payload = { type: metaType, max_bytes: 2000000, ...options };
   await writeJson(chars.exports, payload);
   const raw = await chars.exports.readValue();
   const text = new TextDecoder().decode(raw).replace(/\0+$/, '');
-  if (text.startsWith('ERROR:')) {
-    return { error: text };
-  }
+  if (text.startsWith('ERROR:')) return { error: text };
   try {
     return JSON.parse(text);
   } catch (err) {
-    return { error: err.message };
+    return { error: `Bad JSON from device: ${err.message}` };
   }
 }
 
@@ -1796,7 +1811,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     tab.classList.add('active');
     document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
     if (tab.dataset.tab === 'logs') { _renderLogs(); loadLogs(); }
-    if (tab.dataset.tab === 'history') loadHistory();
+    if (tab.dataset.tab === 'history') { loadHistory(); loadScanList(); loadSummaryList(); }
   });
 });
 
